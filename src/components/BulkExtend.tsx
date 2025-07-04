@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,9 +18,9 @@ interface BulkExtendProps {
 const BulkExtend = ({ selectedBills, onBack, onSuccess }: BulkExtendProps) => {
   const [formData, setFormData] = useState({
     reason: '',
-    estimatedDeliveryDate: '',
-    estimatedDeliveryTime: '',
-    distanceLeft: '',
+    currentPinCode: '',
+    currentPlace: '',
+    remainingKm: '',
     remarks: ''
   });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -47,10 +46,10 @@ const BulkExtend = ({ selectedBills, onBack, onSuccess }: BulkExtendProps) => {
   };
 
   const processBulkExtension = async () => {
-    if (!formData.reason || !formData.estimatedDeliveryDate || !formData.distanceLeft) {
+    if (!formData.reason || !formData.currentPinCode || !formData.currentPlace || !formData.remainingKm) {
       toast({
         title: "Error",
-        description: "Please fill all required fields",
+        description: "Please fill all required fields: Reason, Current PIN Code, Current Place, and Remaining KM",
         variant: "destructive"
       });
       return;
@@ -241,37 +240,41 @@ const BulkExtend = ({ selectedBills, onBack, onSuccess }: BulkExtendProps) => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="distance-left">
-                  Distance Left (km) <span className="text-red-500">*</span>
+                <Label htmlFor="current-pin-code">
+                  Current PIN Code <span className="text-red-500">*</span>
                 </Label>
                 <Input
-                  id="distance-left"
+                  id="current-pin-code"
+                  type="text"
+                  placeholder="Enter current PIN code"
+                  value={formData.currentPinCode}
+                  onChange={(e) => handleInputChange('currentPinCode', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="current-place">
+                  Current Place <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="current-place"
+                  type="text"
+                  placeholder="Enter current place"
+                  value={formData.currentPlace}
+                  onChange={(e) => handleInputChange('currentPlace', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="remaining-km">
+                  Remaining KM <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="remaining-km"
                   type="number"
-                  placeholder="Enter distance in kilometers"
-                  value={formData.distanceLeft}
-                  onChange={(e) => handleInputChange('distanceLeft', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="delivery-date">
-                  Estimated Delivery Date <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="delivery-date"
-                  type="date"
-                  value={formData.estimatedDeliveryDate}
-                  onChange={(e) => handleInputChange('estimatedDeliveryDate', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="delivery-time">Estimated Delivery Time</Label>
-                <Input
-                  id="delivery-time"
-                  type="time"
-                  value={formData.estimatedDeliveryTime}
-                  onChange={(e) => handleInputChange('estimatedDeliveryTime', e.target.value)}
+                  placeholder="Enter remaining kilometers"
+                  value={formData.remainingKm}
+                  onChange={(e) => handleInputChange('remainingKm', e.target.value)}
                 />
               </div>
 
