@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Search } from 'lucide-react';
+import { Search, Calendar, Filter } from 'lucide-react';
 import BulkExtend from './BulkExtend';
 
 interface EwayBill {
@@ -36,14 +36,21 @@ const FetchEwayBill = () => {
   const [selectedBills, setSelectedBills] = useState<EwayBill[]>([]);
   const [selectAll, setSelectAll] = useState<boolean | "indeterminate">(false);
   const [showBulkExtend, setShowBulkExtend] = useState(false);
+  const [showTodaysExpiring, setShowTodaysExpiring] = useState(false);
 
   useEffect(() => {
-    const results = ewayBills.filter(bill =>
+    let results = ewayBills.filter(bill =>
       bill.ewayBillNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
       bill.vehicle.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    if (showTodaysExpiring) {
+      // Filter bills expiring today (within 24 hours)
+      results = results.filter(bill => bill.hoursToExpiry <= 24);
+    }
+
     setFilteredBills(results);
-  }, [searchQuery, ewayBills]);
+  }, [searchQuery, ewayBills, showTodaysExpiring]);
 
   useEffect(() => {
     if (filteredBills.length > 0) {
@@ -96,6 +103,12 @@ const FetchEwayBill = () => {
     setSelectAll(false);
   };
 
+  const handleTodaysExpiringFilter = () => {
+    setShowTodaysExpiring(!showTodaysExpiring);
+    setSelectedBills([]);
+    setSelectAll(false);
+  };
+
   if (showBulkExtend) {
     return (
       <BulkExtend
@@ -124,13 +137,39 @@ const FetchEwayBill = () => {
               />
               <Search className="absolute left-3 top-3 h-5 w-5 text-gray-500" />
             </div>
+            
+            {/* Filter for Today's Expiring Bills */}
+            <div className="flex items-center gap-4">
+              <Button
+                variant={showTodaysExpiring ? "default" : "outline"}
+                onClick={handleTodaysExpiringFilter}
+                className="flex items-center gap-2"
+              >
+                <Calendar className="h-4 w-4" />
+                {showTodaysExpiring ? "Show All Bills" : "Today's Expiring Only"}
+              </Button>
+              
+              {showTodaysExpiring && (
+                <div className="flex items-center gap-2 text-sm text-orange-600">
+                  <Filter className="h-4 w-4" />
+                  Showing bills expiring within 24 hours
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>eWay Bill List</CardTitle>
+          <CardTitle>
+            eWay Bill List 
+            {showTodaysExpiring && (
+              <span className="text-sm font-normal text-orange-600 ml-2">
+                (Today's Expiring - {filteredBills.length} bills)
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -177,7 +216,12 @@ const FetchEwayBill = () => {
                 ))}
                 {filteredBills.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">No eWay Bills found.</TableCell>
+                    <TableCell colSpan={5} className="text-center">
+                      {showTodaysExpiring 
+                        ? "No eWay Bills expiring today!" 
+                        : "No eWay Bills found."
+                      }
+                    </TableCell>
                   </TableRow>
                 )}
               </TableBody>
