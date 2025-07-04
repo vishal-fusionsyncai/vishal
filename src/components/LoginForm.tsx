@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Lock, User, LogIn } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ewayBillApi } from '@/services/ewayBillApi';
 
 interface LoginFormProps {
   onLogin: (username: string, password: string) => void;
@@ -31,15 +32,31 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      onLogin(username, password);
+    try {
+      const authResult = await ewayBillApi.authenticate();
+      
+      if (authResult.success) {
+        onLogin(username, password);
+        toast({
+          title: "Login Successful",
+          description: "Welcome to EasyWayBill",
+        });
+      } else {
+        toast({
+          title: "Authentication Failed",
+          description: authResult.message || "Invalid credentials",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
       toast({
-        title: "Login Successful",
-        description: "Welcome to EasyWayBill",
+        title: "Login Error",
+        description: "Unable to connect to server. Please try again.",
+        variant: "destructive"
       });
-    }, 1000);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -98,7 +115,7 @@ const LoginForm = ({ onLogin }: LoginFormProps) => {
               className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium"
               disabled={isLoading}
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? "Authenticating..." : "Sign In"}
             </Button>
           </form>
         </CardContent>

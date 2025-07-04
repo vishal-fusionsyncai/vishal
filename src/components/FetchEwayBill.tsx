@@ -13,30 +13,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Search, Calendar, Filter } from 'lucide-react';
+import { Search, Calendar, Filter, Loader2 } from 'lucide-react';
 import BulkExtend from './BulkExtend';
-
-interface EwayBill {
-  ewayBillNo: string;
-  vehicle: string;
-  validity: string;
-  hoursToExpiry: number;
-}
+import { ewayBillApi, EwayBillData } from '@/services/ewayBillApi';
+import { useToast } from '@/hooks/use-toast';
 
 const FetchEwayBill = () => {
-  const [ewayBills, setEwayBills] = useState<EwayBill[]>([
-    { ewayBillNo: '123456789012', vehicle: 'MH04JK5678', validity: '2023-12-31 23:59:59', hoursToExpiry: 2 },
-    { ewayBillNo: '234567890123', vehicle: 'GJ05LM9012', validity: '2024-01-01 00:00:00', hoursToExpiry: 25 },
-    { ewayBillNo: '345678901234', vehicle: 'KA01AB3456', validity: '2024-01-02 12:00:00', hoursToExpiry: 72 },
-    { ewayBillNo: '456789012345', vehicle: 'TN07XY6789', validity: '2024-01-03 18:00:00', hoursToExpiry: 96 },
-    { ewayBillNo: '567890123456', vehicle: 'DL08RS0123', validity: '2024-01-04 06:00:00', hoursToExpiry: 120 },
-  ]);
+  const [ewayBills, setEwayBills] = useState<EwayBillData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredBills, setFilteredBills] = useState<EwayBill[]>(ewayBills);
-  const [selectedBills, setSelectedBills] = useState<EwayBill[]>([]);
+  const [filteredBills, setFilteredBills] = useState<EwayBillData[]>([]);
+  const [selectedBills, setSelectedBills] = useState<EwayBillData[]>([]);
   const [selectAll, setSelectAll] = useState<boolean | "indeterminate">(false);
   const [showBulkExtend, setShowBulkExtend] = useState(false);
   const [showTodaysExpiring, setShowTodaysExpiring] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     let results = ewayBills.filter(bill =>
@@ -71,6 +63,59 @@ const FetchEwayBill = () => {
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
+  };
+
+  const handleFetchEwayBill = async () => {
+    if (!searchQuery.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an eWay Bill number to search",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const billData = await ewayBillApi.getEwayBill(searchQuery.trim());
+      
+      if (billData) {
+        // Check if bill already exists
+        const existingBill = ewayBills.find(bill => bill.ewayBillNo === billData.ewayBillNo);
+        if (!existingBill) {
+          setEwayBills(prev => [...prev, billData]);
+          toast({
+            title: "Success",
+            description: "eWay Bill fetched successfully",
+          });
+        } else {
+          toast({
+            title: "Info",
+            description: "eWay Bill already exists in the list",
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "eWay Bill not found or failed to fetch",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch eWay Bill. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleFetchEwayBill();
+    }
   };
 
   const handleSelectAll = (checked: boolean | "indeterminate") => {
@@ -127,15 +172,33 @@ const FetchEwayBill = () => {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
-            <div className="relative">
-              <Input
-                type="text"
-                placeholder="Search by eWay Bill No. or Vehicle No."
-                value={searchQuery}
-                onChange={handleSearchChange}
-                className="pl-10"
-              />
-              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-500" />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type="text"
+                  placeholder="Enter eWay Bill Number to fetch"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onKeyPress={handleKeyPress}
+                  className="pl-10"
+                  disabled={isSearching}
+                />
+                <Search className="absolute left-3 top-3 h-5 w-5 text-gray-500" />
+              </div>
+              <Button 
+                onClick={handleFetchEwayBill}
+                disabled={isSearching || !searchQuery.trim()}
+                className="min-w-[100px]"
+              >
+                {isSearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Fetching...
+                  </>
+                ) : (
+                  'Fetch'
+                )}
+              </Button>
             </div>
             
             {/* Filter for Today's Expiring Bills */}
@@ -163,7 +226,7 @@ const FetchEwayBill = () => {
       <Card>
         <CardHeader>
           <CardTitle>
-            eWay Bill List 
+            eWay Bill List ({ewayBills.length} total)
             {showTodaysExpiring && (
               <span className="text-sm font-normal text-orange-600 ml-2">
                 (Today's Expiring - {filteredBills.length} bills)
@@ -172,61 +235,70 @@ const FetchEwayBill = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableCaption>A list of your recent eWay Bills.</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">
-                    <Checkbox
-                      checked={selectAll}
-                      onCheckedChange={handleSelectAll}
-                      aria-label="Select all"
-                    />
-                  </TableHead>
-                  <TableHead>eWay Bill No.</TableHead>
-                  <TableHead>Vehicle No.</TableHead>
-                  <TableHead>Current Validity</TableHead>
-                  <TableHead>Expiry Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredBills.map((bill) => (
-                  <TableRow key={bill.ewayBillNo}>
-                    <TableCell className="font-medium">
-                      <Checkbox
-                        checked={!!selectedBills.find(b => b.ewayBillNo === bill.ewayBillNo)}
-                        onCheckedChange={(checked) => handleSelectBill(bill, checked)}
-                        aria-label={`Select bill ${bill.ewayBillNo}`}
-                      />
-                    </TableCell>
-                    <TableCell>{bill.ewayBillNo}</TableCell>
-                    <TableCell>{bill.vehicle}</TableCell>
-                    <TableCell>{bill.validity}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        bill.hoursToExpiry <= 6 ? 'bg-red-100 text-red-800' :
-                        bill.hoursToExpiry <= 24 ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {bill.hoursToExpiry}h left
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredBills.length === 0 && (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              Loading eWay Bills...
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableCaption>Your fetched eWay Bills.</TableCaption>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center">
-                      {showTodaysExpiring 
-                        ? "No eWay Bills expiring today!" 
-                        : "No eWay Bills found."
-                      }
-                    </TableCell>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={selectAll}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
+                    <TableHead>eWay Bill No.</TableHead>
+                    <TableHead>Vehicle No.</TableHead>
+                    <TableHead>Current Validity</TableHead>
+                    <TableHead>Expiry Status</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredBills.map((bill) => (
+                    <TableRow key={bill.ewayBillNo}>
+                      <TableCell className="font-medium">
+                        <Checkbox
+                          checked={!!selectedBills.find(b => b.ewayBillNo === bill.ewayBillNo)}
+                          onCheckedChange={(checked) => handleSelectBill(bill, checked)}
+                          aria-label={`Select bill ${bill.ewayBillNo}`}
+                        />
+                      </TableCell>
+                      <TableCell>{bill.ewayBillNo}</TableCell>
+                      <TableCell>{bill.vehicle}</TableCell>
+                      <TableCell>{bill.validity}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                          bill.hoursToExpiry <= 6 ? 'bg-red-100 text-red-800' :
+                          bill.hoursToExpiry <= 24 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {bill.hoursToExpiry}h left
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredBills.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center">
+                        {ewayBills.length === 0 
+                          ? "No eWay Bills fetched yet. Use the search above to fetch bills."
+                          : showTodaysExpiring 
+                            ? "No eWay Bills expiring today!" 
+                            : "No eWay Bills found."
+                        }
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
           
           <div className="flex justify-end mt-4">
             <Button

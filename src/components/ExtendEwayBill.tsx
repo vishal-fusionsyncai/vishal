@@ -6,30 +6,28 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowUpRight, Save } from 'lucide-react';
+import { ArrowUpRight, Save, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ewayBillApi } from '@/services/ewayBillApi';
 
 const ExtendEwayBill = () => {
   const [formData, setFormData] = useState({
     ewayBillNo: '',
+    vehicleNo: '',
+    currentPlace: '',
+    remainingKm: '',
     reason: '',
-    estimatedDeliveryDate: '',
-    estimatedDeliveryTime: '',
-    distanceLeft: '',
-    vehicleNumber: '',
-    transporterDocNumber: '',
-    remarks: ''
+    remarks: '',
+    currentPincode: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const extensionReasons = [
-    { value: 'accident', label: 'Accident' },
-    { value: 'breakdown', label: 'Vehicle Breakdown' },
-    { value: 'traffic', label: 'Traffic Jam' },
-    { value: 'natural_calamity', label: 'Natural Calamity' },
-    { value: 'law_order', label: 'Law & Order Problem' },
-    { value: 'other', label: 'Other' }
+    { value: '1', label: 'Natural Calamity' },
+    { value: '2', label: 'Law and Order Problem' },
+    { value: '3', label: 'Accident' },
+    { value: '4', label: 'Other' }
   ];
 
   const handleInputChange = (field: string, value: string) => {
@@ -40,7 +38,7 @@ const ExtendEwayBill = () => {
   };
 
   const handleExtend = async () => {
-    if (!formData.ewayBillNo || !formData.reason || !formData.estimatedDeliveryDate || !formData.distanceLeft) {
+    if (!formData.ewayBillNo || !formData.vehicleNo || !formData.currentPlace || !formData.remainingKm || !formData.reason || !formData.currentPincode) {
       toast({
         title: "Error",
         description: "Please fill all required fields",
@@ -51,26 +49,60 @@ const ExtendEwayBill = () => {
 
     setIsLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Success",
-        description: "eWay Bill extended successfully",
-      });
+    try {
+      const requestData = {
+        ewbNo: parseInt(formData.ewayBillNo),
+        vehicleNo: formData.vehicleNo,
+        fromPlace: formData.currentPlace,
+        fromState: 29, // Default state
+        remainingDistance: parseInt(formData.remainingKm),
+        transDocNo: '12', // Default
+        transDocDate: new Date().toLocaleDateString('en-GB'),
+        transMode: '1', // Default
+        extnRsnCode: parseInt(formData.reason),
+        extnRemarks: formData.remarks,
+        fromPincode: parseInt(formData.currentPincode),
+        consignmentStatus: 'M',
+        transitType: '',
+        addressLine1: '',
+        addressLine2: '',
+        addressLine3: ''
+      };
+
+      const success = await ewayBillApi.extendEwayBill(requestData);
       
-      // Reset form
-      setFormData({
-        ewayBillNo: '',
-        reason: '',
-        estimatedDeliveryDate: '',
-        estimatedDeliveryTime: '',
-        distanceLeft: '',
-        vehicleNumber: '',
-        transporterDocNumber: '',
-        remarks: ''
+      if (success) {
+        toast({
+          title: "Success",
+          description: "eWay Bill extended successfully",
+        });
+        
+        // Reset form
+        setFormData({
+          ewayBillNo: '',
+          vehicleNo: '',
+          currentPlace: '',
+          remainingKm: '',
+          reason: '',
+          remarks: '',
+          currentPincode: ''
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to extend eWay Bill. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to extend eWay Bill. Please check your connection and try again.",
+        variant: "destructive"
       });
-    }, 1500);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -103,6 +135,56 @@ const ExtendEwayBill = () => {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="vehicle-no">
+                  Vehicle Number <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="vehicle-no"
+                  placeholder="Enter vehicle number"
+                  value={formData.vehicleNo}
+                  onChange={(e) => handleInputChange('vehicleNo', e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="current-pincode">
+                  Current PIN Code <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="current-pincode"
+                  placeholder="Enter current PIN code"
+                  value={formData.currentPincode}
+                  onChange={(e) => handleInputChange('currentPincode', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="current-place">
+                  Current Place <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="current-place"
+                  placeholder="Enter current place"
+                  value={formData.currentPlace}
+                  onChange={(e) => handleInputChange('currentPlace', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="remaining-km">
+                  Remaining Distance (km) <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="remaining-km"
+                  type="number"
+                  placeholder="Enter distance in kilometers"
+                  value={formData.remainingKm}
+                  onChange={(e) => handleInputChange('remainingKm', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="reason">
                   Reason for Extension <span className="text-red-500">*</span>
                 </Label>
@@ -121,62 +203,6 @@ const ExtendEwayBill = () => {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="delivery-date">
-                  Estimated Delivery Date <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="delivery-date"
-                  type="date"
-                  value={formData.estimatedDeliveryDate}
-                  onChange={(e) => handleInputChange('estimatedDeliveryDate', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="delivery-time">Estimated Delivery Time</Label>
-                <Input
-                  id="delivery-time"
-                  type="time"
-                  value={formData.estimatedDeliveryTime}
-                  onChange={(e) => handleInputChange('estimatedDeliveryTime', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="distance-left">
-                  Distance Left (km) <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="distance-left"
-                  type="number"
-                  placeholder="Enter distance in kilometers"
-                  value={formData.distanceLeft}
-                  onChange={(e) => handleInputChange('distanceLeft', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="vehicle-number">Vehicle Number</Label>
-                <Input
-                  id="vehicle-number"
-                  placeholder="Enter vehicle number"
-                  value={formData.vehicleNumber}
-                  onChange={(e) => handleInputChange('vehicleNumber', e.target.value)}
-                  className="font-mono"
-                />
-              </div>
-
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="transporter-doc">Transporter Document Number</Label>
-                <Input
-                  id="transporter-doc"
-                  placeholder="Enter transporter document number"
-                  value={formData.transporterDocNumber}
-                  onChange={(e) => handleInputChange('transporterDocNumber', e.target.value)}
-                />
               </div>
 
               <div className="space-y-2 md:col-span-2">
@@ -198,8 +224,17 @@ const ExtendEwayBill = () => {
                 disabled={isLoading}
                 className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none"
               >
-                <ArrowUpRight className="mr-2 h-4 w-4" />
-                {isLoading ? "Extending..." : "Extend eWay Bill"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Extending...
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpRight className="mr-2 h-4 w-4" />
+                    Extend eWay Bill
+                  </>
+                )}
               </Button>
               
               <Button 

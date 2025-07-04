@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -5,37 +6,33 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
-import { ArrowUpRight, ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ewayBillApi, EwayBillData } from '@/services/ewayBillApi';
 
 interface BulkExtendProps {
-  selectedBills: any[];
+  selectedBills: EwayBillData[];
   onBack: () => void;
   onSuccess: () => void;
 }
 
 const BulkExtend = ({ selectedBills, onBack, onSuccess }: BulkExtendProps) => {
   const [formData, setFormData] = useState({
-    reason: '',
-    currentPinCode: '',
+    currentPincode: '',
     currentPlace: '',
     remainingKm: '',
+    reason: '',
     remarks: ''
   });
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [processedBills, setProcessedBills] = useState<any[]>([]);
-  const [showResults, setShowResults] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [results, setResults] = useState<Array<{ ewbNo: string; success: boolean; error?: string }> | null>(null);
   const { toast } = useToast();
 
   const extensionReasons = [
-    { value: 'accident', label: 'Accident' },
-    { value: 'breakdown', label: 'Vehicle Breakdown' },
-    { value: 'traffic', label: 'Traffic Jam' },
-    { value: 'natural_calamity', label: 'Natural Calamity' },
-    { value: 'law_order', label: 'Law & Order Problem' },
-    { value: 'other', label: 'Other' }
+    { value: '1', label: 'Natural Calamity' },
+    { value: '2', label: 'Law and Order Problem' },
+    { value: '3', label: 'Accident' },
+    { value: '4', label: 'Other' }
   ];
 
   const handleInputChange = (field: string, value: string) => {
@@ -45,182 +42,216 @@ const BulkExtend = ({ selectedBills, onBack, onSuccess }: BulkExtendProps) => {
     }));
   };
 
-  const processBulkExtension = async () => {
-    if (!formData.reason || !formData.currentPinCode || !formData.currentPlace || !formData.remainingKm) {
+  const handleBulkExtend = async () => {
+    if (!formData.currentPincode || !formData.currentPlace || !formData.remainingKm || !formData.reason) {
       toast({
         title: "Error",
-        description: "Please fill all required fields: Reason, Current PIN Code, Current Place, and Remaining KM",
+        description: "Please fill all required fields",
         variant: "destructive"
       });
       return;
     }
 
-    setIsProcessing(true);
-    setProgress(0);
-    const results: any[] = [];
-
-    // Simulate processing each bill
-    for (let i = 0; i < selectedBills.length; i++) {
-      const bill = selectedBills[i];
+    setIsLoading(true);
+    
+    try {
+      const response = await ewayBillApi.bulkExtendEwayBills(selectedBills, formData);
+      setResults(response.results);
       
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const successCount = response.results.filter(r => r.success).length;
+      const failureCount = response.results.length - successCount;
       
-      // Simulate success/failure (90% success rate)
-      const success = Math.random() > 0.1;
-      
-      results.push({
-        ...bill,
-        success,
-        message: success ? 'Extended successfully' : 'Extension failed - Invalid bill state'
+      if (successCount > 0) {
+        toast({
+          title: "Bulk Extension Completed",
+          description: `Successfully extended ${successCount} eWay Bills${failureCount > 0 ? `, ${failureCount} failed` : ''}`,
+        });
+      } else {
+        toast({
+          title: "Extension Failed",
+          description: "All eWay Bills failed to extend. Please check the details and try again.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process bulk extension. Please try again.",
+        variant: "destructive"
       });
-      
-      setProgress(((i + 1) / selectedBills.length) * 100);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    setProcessedBills(results);
-    setIsProcessing(false);
-    setShowResults(true);
-
-    const successCount = results.filter(r => r.success).length;
-    const failureCount = results.length - successCount;
-
-    toast({
-      title: "Bulk Extension Complete",
-      description: `${successCount} bills extended successfully, ${failureCount} failed`,
+  const handleStartOver = () => {
+    setResults(null);
+    setFormData({
+      currentPincode: '',
+      currentPlace: '',
+      remainingKm: '',
+      reason: '',
+      remarks: ''
     });
   };
 
-  const handleFinish = () => {
-    onSuccess();
-  };
-
-  if (showResults) {
-    const successCount = processedBills.filter(r => r.success).length;
-    const failureCount = processedBills.length - successCount;
+  if (results) {
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.length - successCount;
 
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Bulk Extension Results</h1>
+        <div className="flex items-center gap-4">
           <Button variant="outline" onClick={onBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Search
           </Button>
+          <h1 className="text-2xl font-bold text-gray-900">Extension Results</h1>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="border-0 shadow-md bg-green-50">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <CheckCircle className="h-8 w-8 text-green-600 mr-3" />
-                <div>
-                  <h3 className="text-lg font-semibold text-green-900">Successful</h3>
-                  <p className="text-2xl font-bold text-green-600">{successCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-0 shadow-md bg-red-50">
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <XCircle className="h-8 w-8 text-red-600 mr-3" />
-                <div>
-                  <h3 className="text-lg font-semibold text-red-900">Failed</h3>
-                  <p className="text-2xl font-bold text-red-600">{failureCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="border-0 shadow-md">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">
-              Extension Results Details
+            <CardTitle className="flex items-center gap-2">
+              {successCount > 0 ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <XCircle className="h-5 w-5 text-red-600" />
+              )}
+              Extension Summary
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">eWay Bill No.</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">Vehicle</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">Status</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">Message</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {processedBills.map((bill, index) => (
-                    <tr key={index} className="border-b border-gray-100">
-                      <td className="py-3 px-4 font-mono text-sm text-blue-600">
-                        {bill.ewayBillNo}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-900 font-mono">
-                        {bill.vehicle}
-                      </td>
-                      <td className="py-3 px-4">
-                        {bill.success ? (
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-600" />
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-600">
-                        {bill.message}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{results.length}</div>
+                <div className="text-sm text-blue-800">Total Processed</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{successCount}</div>
+                <div className="text-sm text-green-800">Successful</div>
+              </div>
+              <div className="text-center p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{failureCount}</div>
+                <div className="text-sm text-red-800">Failed</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-semibold text-gray-900">Detailed Results:</h3>
+              {results.map((result, index) => (
+                <div
+                  key={result.ewbNo}
+                  className={`flex items-center justify-between p-3 rounded-lg ${
+                    result.success ? 'bg-green-50' : 'bg-red-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {result.success ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <span className="font-mono text-sm">{result.ewbNo}</span>
+                  </div>
+                  <span className={`text-xs ${
+                    result.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {result.success ? 'Extended Successfully' : result.error || 'Extension Failed'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-4 mt-6">
+              <Button onClick={handleStartOver} variant="outline">
+                Extend More Bills
+              </Button>
+              <Button onClick={onSuccess}>
+                Done
+              </Button>
             </div>
           </CardContent>
         </Card>
-
-        <div className="flex justify-end">
-          <Button onClick={handleFinish} className="bg-blue-600 hover:bg-blue-700">
-            Finish
-          </Button>
-        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Bulk Extend eWay Bills</h1>
+      <div className="flex items-center gap-4">
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Search
         </Button>
+        <h1 className="text-2xl font-bold text-gray-900">Bulk Extend eWay Bills</h1>
       </div>
 
-      <Card className="border-0 shadow-md bg-blue-50">
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">Selected Bills for Extension</h3>
-          <p className="text-sm text-blue-800">
-            You have selected <strong>{selectedBills.length}</strong> eWay Bills for bulk extension.
-            All selected bills will be extended with the same parameters.
-          </p>
+      {/* Selected Bills Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Selected Bills ({selectedBills.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {selectedBills.map((bill) => (
+              <div key={bill.ewayBillNo} className="p-3 bg-gray-50 rounded-lg">
+                <div className="font-mono text-sm font-semibold">{bill.ewayBillNo}</div>
+                <div className="text-xs text-gray-600">{bill.vehicle}</div>
+                <div className="text-xs text-orange-600">{bill.hoursToExpiry}h left</div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-md">
+      {/* Extension Form */}
+      <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center">
-            <ArrowUpRight className="mr-2 h-5 w-5" />
-            Bulk Extension Form
-          </CardTitle>
+          <CardTitle>Extension Details</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
+                <Label htmlFor="current-pincode">
+                  Current PIN Code <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="current-pincode"
+                  placeholder="Enter current PIN code"
+                  value={formData.currentPincode}
+                  onChange={(e) => handleInputChange('currentPincode', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="current-place">
+                  Current Place <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="current-place"
+                  placeholder="Enter current place"
+                  value={formData.currentPlace}
+                  onChange={(e) => handleInputChange('currentPlace', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="remaining-km">
+                  Remaining KM <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="remaining-km"
+                  type="number"
+                  placeholder="Enter remaining distance in KM"
+                  value={formData.remainingKm}
+                  onChange={(e) => handleInputChange('remainingKm', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="reason">
-                  Reason for Extension <span className="text-red-500">*</span>
+                  Reason <span className="text-red-500">*</span>
                 </Label>
                 <Select 
                   value={formData.reason} 
@@ -239,50 +270,11 @@ const BulkExtend = ({ selectedBills, onBack, onSuccess }: BulkExtendProps) => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="current-pin-code">
-                  Current PIN Code <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="current-pin-code"
-                  type="text"
-                  placeholder="Enter current PIN code"
-                  value={formData.currentPinCode}
-                  onChange={(e) => handleInputChange('currentPinCode', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="current-place">
-                  Current Place <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="current-place"
-                  type="text"
-                  placeholder="Enter current place"
-                  value={formData.currentPlace}
-                  onChange={(e) => handleInputChange('currentPlace', e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="remaining-km">
-                  Remaining KM <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="remaining-km"
-                  type="number"
-                  placeholder="Enter remaining kilometers"
-                  value={formData.remainingKm}
-                  onChange={(e) => handleInputChange('remainingKm', e.target.value)}
-                />
-              </div>
-
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="remarks">Remarks</Label>
                 <Textarea
                   id="remarks"
-                  placeholder="Enter any additional remarks for all selected bills"
+                  placeholder="Enter any additional remarks"
                   value={formData.remarks}
                   onChange={(e) => handleInputChange('remarks', e.target.value)}
                   rows={3}
@@ -290,79 +282,27 @@ const BulkExtend = ({ selectedBills, onBack, onSuccess }: BulkExtendProps) => {
               </div>
             </div>
 
-            {isProcessing && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">
-                    Processing {selectedBills.length} eWay Bills...
-                  </span>
-                  <span className="text-sm text-gray-500">
-                    {Math.round(progress)}%
-                  </span>
-                </div>
-                <Progress value={progress} className="w-full" />
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
+            <div className="flex justify-end pt-4">
               <Button 
                 type="button"
-                onClick={processBulkExtension}
-                disabled={isProcessing}
-                className="bg-blue-600 hover:bg-blue-700 flex-1 sm:flex-none"
+                onClick={handleBulkExtend}
+                disabled={isLoading}
+                className="bg-blue-600 hover:bg-blue-700"
               >
-                <ArrowUpRight className="mr-2 h-4 w-4" />
-                {isProcessing ? "Processing..." : `Extend ${selectedBills.length} Bills`}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Extending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Extend All Bills
+                  </>
+                )}
               </Button>
             </div>
           </form>
-        </CardContent>
-      </Card>
-
-      {/* Selected Bills Preview */}
-      <Card className="border-0 shadow-md">
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold text-gray-900">
-            Selected Bills Preview
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">eWay Bill No.</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Vehicle</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Current Validity</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-600">Expiry Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedBills.map((bill, index) => (
-                  <tr key={index} className="border-b border-gray-100">
-                    <td className="py-3 px-4 font-mono text-sm text-blue-600">
-                      {bill.ewayBillNo}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-900 font-mono">
-                      {bill.vehicle}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {bill.validity}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                        bill.hoursToExpiry <= 6 ? 'bg-red-100 text-red-800' :
-                        bill.hoursToExpiry <= 24 ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-green-100 text-green-800'
-                      }`}>
-                        {bill.hoursToExpiry}h left
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </CardContent>
       </Card>
     </div>
